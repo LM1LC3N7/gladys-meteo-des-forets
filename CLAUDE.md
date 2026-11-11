@@ -10,38 +10,37 @@ no build step) that runs in its own sandboxed Docker container and talks to
 Gladys through
 [`@gladysassistant/integration-sdk`](https://github.com/GladysAssistant/integration-sdk-js),
 its only runtime dependency. It started from the official JavaScript template.
+It reads the yearly open-data file of the Météo des forêts (Météo-France,
+data.gouv.fr, Licence Ouverte 2.0) and publishes the forest fire danger of
+today and tomorrow for the departments the user follows. Read only.
 
 ## Commands
 
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/pure.test.js             # one file
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
-npm run format                            # Prettier, fix in place
+node scripts/mutants.mjs [filter]         # the mutants the tests must kill (wrap in memcap)
 npx github:GladysAssistant/integration-store .   # store admission checks
 ```
-
-The CI (`.github/workflows/ci.yml`) runs `format:check`, `lint` and `test` on
-Node 22 and 24, and builds the Docker image: run the three commands before
-pushing.
 
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
-src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
-src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
-test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
-.github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
+index.js              SDK wiring only: handlers registered before connect()
+src/app.js            ForestApp: schedule (slots of the source, MIN_GAP, pauses), read, publish, status
+src/bulletin.js       the CSV (every year's format) -> bulletins; Paris days; level of a day (pure)
+src/source.js         one conditional GET (ETag) + bounded gunzip
+src/http.js           bounded GET (timeout, size, User-Agent, no redirect), SourceError
+src/devices.js        device per department, external ids dep:<code> (forever)
+src/triggers.js       the scene trigger fire_danger_forecast (pure)
+src/departments.js    the 96 departments of the Météo des forêts
+src/i18n.js           runtime texts (en/fr), times in Paris time
+src/store.js          /data JSON file (temporary file + rename, one write at a time)
+test/                 node --test against the SDK's fake Gladys, a fake S3, virtual and real clocks
+scripts/mutants.mjs   the versioned list of mutants
 ```
 
 ## Rules

@@ -1,177 +1,242 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Météo des forêts",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Unofficial: Météo-France forest fire danger by department, tomorrow and the day after.",
+    "fr": "Non officiel : danger feu de forêt Météo-France par département, demain et après-demain."
   },
-  "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "version": "0.1.0",
+  "docker_image": "ghcr.io/lm1lc3n7/gladys-meteo-des-forets:0.1.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/LM1LC3N7/gladys-meteo-des-forets/main/cover.png",
+  "categories": ["environment"],
+  "transports": ["cloud"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Forest fire danger in your departments",
+        "fr": "Le danger feu de forêt dans vos départements"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Unofficial, not affiliated with Météo-France. Reads the open data of the Météo des forêts on data.gouv.fr (no account, no key): one device per department with the danger level (1 low, 2 moderate, 3 high, 4 very high) of today and of tomorrow, the bulletin (with the day after), and a scene trigger. The bulletin comes out once a day in season (June to early October), around 16:50 Paris time; off season there is no bulletin: the status says so, it is not an error, nothing is published as 0. Mainland France and Corsica only. Information only, never an alert system: follow the instructions of the prefecture. Source: Météo-France, Licence Ouverte 2.0. Never tested with a real device (a public service), tried against the real file.",
+        "fr": "Non officiel, sans lien avec Météo-France. Lit les données ouvertes de la Météo des forêts sur data.gouv.fr (sans compte ni clé) : un appareil par département avec le niveau de danger (1 faible, 2 modéré, 3 élevé, 4 très élevé) d'aujourd'hui et de demain, le bulletin (avec après-demain), et un déclencheur de scène. Le bulletin sort une fois par jour en saison (juin à début octobre), vers 16 h 50 ; hors saison il n'y a pas de bulletin : le statut le dit, ce n'est pas une erreur, rien n'est publié à 0. Hexagone et Corse seulement. Information seulement, jamais un système d'alerte : suivez les consignes de la préfecture. Source : Météo-France, Licence Ouverte 2.0. Jamais testé avec un vrai appareil (un service public), essayé contre le vrai fichier."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://meteofrance.com/meteo-des-forets",
+          "label": {
+            "en": "Météo des forêts (Météo-France)",
+            "fr": "Météo des forêts (Météo-France)"
+          }
+        },
+        {
+          "url": "https://www.data.gouv.fr/datasets/archives-de-la-meteo-des-forets",
+          "label": {
+            "en": "Dataset on data.gouv.fr",
+            "fr": "Jeu de données sur data.gouv.fr"
+          }
+        },
+        {
+          "url": "https://www.etalab.gouv.fr/licence-ouverte-open-licence/",
+          "label": {
+            "en": "Licence Ouverte 2.0",
+            "fr": "Licence Ouverte 2.0"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-meteo-des-forets/blob/main/docs/fr.md",
+          "label": {
+            "en": "Guide (French)",
+            "fr": "Guide (français)"
+          }
+        },
+        {
+          "url": "https://github.com/LM1LC3N7/gladys-meteo-des-forets/blob/main/docs/en.md",
+          "label": {
+            "en": "Guide (English)",
+            "fr": "Guide (anglais)"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "departments",
+      "type": "string",
+      "label": {
+        "en": "Departments",
+        "fr": "Départements"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The codes of the departments to follow, separated by commas: 13, 83, 2A (10 at most). Then create their devices in Discovery.",
+        "fr": "Les codes des départements à suivre, séparés par des virgules : 13, 83, 2A (10 au plus). Créez ensuite leurs appareils dans la Découverte."
+      },
+      "placeholder": {
+        "en": "13, 83, 2A",
+        "fr": "13, 83, 2A"
+      },
+      "required": true
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
-      },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
-    },
-    {
-      "key": "unit",
+      "key": "language",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
-      "required": false,
-      "default": "celsius",
-      "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
-      ]
-    },
-    {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "label": {
+        "en": "Language of the device names and texts",
+        "fr": "Langue des noms d'appareils et des textes"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "The names of the devices offered in Discovery and the text of the bulletin.",
+        "fr": "Les noms des appareils proposés dans la Découverte et le texte du bulletin."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": "fr",
+      "options": [
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français"
+          }
+        },
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
-    },
-    {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ]
+      "key": "test_connection",
+      "label": {
+        "en": "Test",
+        "fr": "Tester"
+      },
+      "description": {
+        "en": "Reads the file now if a read is due, else shows the last bulletin and the time of the next read: never more often than the bulletin comes out.",
+        "fr": "Lit le fichier maintenant si une lecture est due, sinon montre le dernier bulletin et l'heure de la prochaine lecture : jamais plus souvent que le bulletin ne sort."
+      },
+      "timeout_seconds": 60
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "fire_danger_forecast",
+      "label": {
+        "en": "Forest fire danger forecast raised",
+        "fr": "Danger feu de forêt prévu en hausse"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "A new bulletin forecasts for tomorrow a level reaching the chosen one, coming from below it (the level of the day the bulletin comes out; no bulletin that day counts as low). Once per bulletin, never at the first read, never for a bulletin more than 24 h old.",
+        "fr": "Un nouveau bulletin prévoit pour demain un niveau qui atteint celui choisi, en venant d'en dessous (le niveau du jour où sort le bulletin ; pas de bulletin ce jour-là compte comme faible). Une fois par bulletin, jamais à la première lecture, jamais pour un bulletin de plus de 24 h."
       },
       "fields": [
         {
-          "key": "device",
+          "key": "department",
           "type": "select",
           "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+          "required": true,
+          "label": {
+            "en": "Department",
+            "fr": "Département"
+          }
         },
         {
-          "key": "target",
-          "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
+          "key": "level",
+          "type": "select",
+          "required": true,
+          "label": {
+            "en": "Level reached",
+            "fr": "Niveau atteint"
+          },
           "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+            {
+              "value": "2",
+              "label": {
+                "en": "Moderate",
+                "fr": "Modéré"
+              }
+            },
+            {
+              "value": "3",
+              "label": {
+                "en": "High",
+                "fr": "Élevé"
+              }
+            },
+            {
+              "value": "4",
+              "label": {
+                "en": "Very high",
+                "fr": "Très élevé"
+              }
+            }
           ]
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "current_level",
+          "type": "number",
+          "label": {
+            "en": "Level forecast for tomorrow (1-4)",
+            "fr": "Niveau prévu demain (1-4)"
+          }
+        },
+        {
+          "key": "level_name",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Name of that level",
+            "fr": "Nom de ce niveau"
+          }
+        },
+        {
+          "key": "previous_level",
+          "type": "number",
+          "label": {
+            "en": "Level of the day before (1-4)",
+            "fr": "Niveau de la veille (1-4)"
+          }
+        },
+        {
+          "key": "day_after_level",
+          "type": "number",
+          "label": {
+            "en": "Level forecast for the day after (1-4)",
+            "fr": "Niveau prévu après-demain (1-4)"
+          }
+        },
+        {
+          "key": "department_code",
+          "type": "string",
+          "label": {
+            "en": "Department code",
+            "fr": "Code du département"
+          }
+        },
+        {
+          "key": "forecast_date",
+          "type": "string",
+          "label": {
+            "en": "Day forecast (YYYY-MM-DD)",
+            "fr": "Jour prévu (AAAA-MM-JJ)"
+          }
+        },
+        {
+          "key": "bulletin_at",
+          "type": "string",
+          "label": {
+            "en": "Time of the bulletin (ISO, UTC)",
+            "fr": "Heure du bulletin (ISO, UTC)"
+          }
         }
       ]
-    }
-  ],
-  "scene_actions": [
-    {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
-      },
-      "timeout_seconds": 15,
-      "fields": [
-        {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
-        }
-      ],
-      "outputs": [
-        {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
-        }
-      ]
-    }
-  ],
-  "widgets": [
-    {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
-      },
-      "icon": "activity",
-      "action_timeout_seconds": 15
     }
   ]
 }

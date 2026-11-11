@@ -1,67 +1,85 @@
-# Template de démonstration
+# Météo des forêts
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Intégration **non officielle**, sans lien avec Météo-France. Elle lit les données ouvertes de la
+**Météo des forêts** publiées par Météo-France sur data.gouv.fr (sans compte ni clé) et donne, pour
+chaque département suivi, le niveau de danger feu de forêt d'aujourd'hui et de demain, le texte du
+dernier bulletin, et un déclencheur de scène.
 
-## Ce que vous obtenez
+Information seulement, jamais un système d'alerte : suivez les consignes de la préfecture et de
+Météo-France. Jamais testé avec un vrai appareil (c'est un service public) ; essayé contre le vrai
+fichier de Météo-France.
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+## Ce que fait l'intégration
+
+- Un appareil par département suivi (Hexagone et Corse : `01` à `95`, `2A`, `2B` ; 10 au plus).
+- Fonctions de chaque appareil :
+  - **Danger feu aujourd'hui (1-4)** et **Danger feu demain (1-4)** : 1 faible, 2 modéré, 3 élevé,
+    4 très élevé. Le niveau d'un jour vient du bulletin de la veille (J+1), sinon de celui de
+    l'avant-veille (J+2). Ils changent à minuit (heure de Paris) et quand un nouveau bulletin sort.
+  - **Bulletin** : « Bulletin du 05/10/2026 16:50 : 06/10 modéré, 07/10 faible » (le niveau J+2,
+    après-demain, est dans ce texte), ou « Pas de bulletin (hors saison). Dernier : 05/10/2026. ».
+- Déclencheur de scène **« Danger feu de forêt prévu en hausse »** : un nouveau bulletin prévoit pour
+  demain un niveau qui atteint celui choisi (modéré, élevé ou très élevé), en venant d'en dessous (le
+  niveau du jour où sort le bulletin ; s'il n'y en avait pas, il compte comme faible). Variables :
+  niveau prévu, nom du niveau, niveau de la veille, niveau d'après-demain, code du département, jour
+  prévu, heure du bulletin. Une fois par bulletin et par niveau franchi ; jamais à la première
+  lecture d'un département ; jamais pour un bulletin de plus de 24 h (trouvé en retard après une
+  panne) ; un bulletin corrigé le même jour ne redéclenche pas une hausse déjà annoncée.
 
 ## Configuration
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+1. **Départements** : leurs codes séparés par des virgules, par exemple `13, 83, 2A`. Un code inconnu
+   (`20`, `971`...) est ignoré et le statut le dit. Au-delà de 10, les suivants sont ignorés.
+2. **Langue** des noms d'appareils et du texte du bulletin (français ou anglais).
+3. Ouvrez la **Découverte** et créez les appareils des départements.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+Le bouton **Tester** lit le fichier si une lecture est due ; sinon il montre le dernier bulletin et
+l'heure de la prochaine lecture. Il ne lit jamais plus souvent que ce qui suit.
 
-## Actions
+## Quand l'intégration lit le fichier
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+Météo-France publie le bulletin une fois par jour, vers 16 h 50 (heure de Paris), puis met à jour le
+fichier annuel `mdf_<année>.csv.gz` (environ 50 Ko compressé).
 
-## Scènes
+- **En saison** (un bulletin depuis moins de 3 jours) : une lecture à 15 h 30 UTC ; tant que le
+  bulletin du jour manque, de nouveau à 16 h 30, 18 h et 20 h 30 UTC ; rien d'autre ce jour-là une
+  fois le bulletin du jour reçu.
+- **Hors saison** (en général d'octobre à mai) : une lecture par jour, à 17 h 30 UTC, pour voir le
+  premier bulletin de la saison le jour où il sort. Il n'y a pas de bulletin : l'état dit « pas de
+  bulletin », ce n'est pas une erreur, et aucun niveau n'est publié (jamais 0). Les dernières valeurs
+  de la saison restent affichées dans Gladys avec leur date ; le texte du bulletin dit qu'il n'y en a
+  plus.
+- Au démarrage, une lecture tout de suite seulement si le fichier n'a jamais été lu pour ces
+  départements ou si un créneau a été manqué ; deux requêtes sont toujours espacées de 20 minutes au
+  moins (redémarrage, bouton, configuration, horloge changée), sauf si /data a été perdu.
+- Chaque lecture envoie l'ETag de la précédente : si le fichier n'a pas changé, le serveur répond 304
+  sans rien télécharger.
+- Du 1er janvier à la création du fichier de l'année, le serveur répond 404 : « pas encore de
+  bulletin cette année », sans erreur, une fois par jour.
+- Si le serveur demande d'attendre (429 ou 5xx), l'intégration attend ce qu'il demande (20 minutes au
+  moins, doublé à chaque refus, 6 heures au plus), même après un redémarrage.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+## Ce qui est gardé dans /data
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+L'heure de la dernière requête, la pause demandée par le serveur, les 4 derniers bulletins des
+départements suivis avec l'ETag du fichier, les dernières valeurs publiées (un redémarrage ne republie
+pas la même valeur) et la mémoire du déclencheur. Aucune donnée personnelle, aucun secret.
 
-## Tableau de bord
+## Limites
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+- Hexagone et Corse seulement : la Météo des forêts ne couvre pas l'outre-mer.
+- Un niveau inconnu reste inconnu : rien n'est publié, jamais 0. Une ligne illisible du fichier est
+  ignorée et comptée dans le statut.
+- Le fichier est une archive mise à jour chaque jour, pas un flux en temps réel : le bulletin arrive
+  dans Gladys au plus tard vers 17 h 30 heure de Paris en été, s'il est publié à l'heure habituelle.
 
-## Dépannage
+## Source et licence des données
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+Météo des forêts, Météo-France, jeu de données « Archives de la Météo des forêts » sur data.gouv.fr,
+sous **Licence Ouverte 2.0** (Etalab). Les niveaux sont repris tels que publiés.
+
+## Confidentialité
+
+L'intégration n'envoie rien d'autre qu'une requête GET au serveur de fichiers de Météo-France
+(`meteofrance.s3.sbg.io.cloud.ovh.net`), avec un User-Agent propre au module ; ni votre position ni
+vos départements ne sont envoyés (le fichier contient toute la France).

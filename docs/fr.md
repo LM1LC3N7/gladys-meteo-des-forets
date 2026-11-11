@@ -24,7 +24,11 @@ fichier de Météo-France.
   niveau prévu, nom du niveau, niveau de la veille, niveau d'après-demain, code du département, jour
   prévu, heure du bulletin. Une fois par bulletin et par niveau franchi ; jamais à la première
   lecture d'un département ; jamais pour un bulletin de plus de 24 h (trouvé en retard après une
-  panne) ; un bulletin corrigé le même jour ne redéclenche pas une hausse déjà annoncée.
+  panne) ; un bulletin corrigé le même jour ne redéclenche pas une hausse déjà annoncée ;
+  une correction publiée après la lecture du jour n'est lue que le lendemain. Après une panne, un
+  bulletin de moins de 24 h peut encore déclencher alors que le « demain » qu'il prévoit est déjà
+  aujourd'hui (la variable « jour prévu » le dit). Si /data ne peut pas être écrit, l'événement part
+  quand même : un redémarrage peut alors le renvoyer.
 
 ## Configuration
 
@@ -56,8 +60,10 @@ fichier annuel `mdf_<année>.csv.gz` (environ 50 Ko compressé).
   sans rien télécharger.
 - Du 1er janvier à la création du fichier de l'année, le serveur répond 404 : « pas encore de
   bulletin cette année », sans erreur, une fois par jour.
-- Si le serveur demande d'attendre (429 ou 5xx), l'intégration attend ce qu'il demande (20 minutes au
-  moins, doublé à chaque refus, 6 heures au plus), même après un redémarrage.
+- Après un échec (429, 5xx, 403, réseau, fichier non compris), l'intégration attend avant de
+  réessayer : 20 minutes, doublé à chaque échec, 6 heures au plus, ce que demande le serveur s'il le
+  dit (`Retry-After`), même après un redémarrage. Un fichier non compris ne publie aucune valeur et
+  laisse le statut en erreur.
 
 ## Ce qui est gardé dans /data
 

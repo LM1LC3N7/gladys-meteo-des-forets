@@ -97,6 +97,38 @@ export const MUTANTS = [
   ],
   ['never for an old bulletin', TR, 'now - newest.at > EVENT_MAX_AGE ||', ''],
   ['a correction compared with the one seen', TR, 'memory.issued === newest.issued', 'false'],
+  // Review r1.
+  [
+    'r1 I1 backoff doubled on any failure',
+    A,
+    'const doubled = PAUSE.min * 2 ** Math.min(count - 1, 8);',
+    'const doubled = PAUSE.min;',
+  ],
+  [
+    'r1 I1 backoff ended only by a usable answer',
+    A,
+    '    // A usable answer ends the backoff (never before the file is read).\n    this.pause = undefined;\n',
+    '',
+  ],
+  [
+    'r1 M1 memory written before the events',
+    A,
+    'if (memoriesChanged) await this.saveState();',
+    'if (memoriesChanged) void 0;',
+  ],
+  [
+    'r1 M2 a deleted device forgets its memory',
+    A,
+    'let changed = this.memories.delete(id);',
+    'let changed = false;',
+  ],
+  [
+    'r1 M3 memory seeded for a device created after the read',
+    A,
+    'this.memories.set(target.deviceId, memory);\n        memoriesChanged = true;\n      }\n      if (events) {',
+    'memoriesChanged = true;\n      }\n      if (events) {',
+  ],
+  ['r1 M5 the later line of the same second wins', B, 'before.at <= at', 'before.at < at'],
 ];
 
 async function run(dir) {

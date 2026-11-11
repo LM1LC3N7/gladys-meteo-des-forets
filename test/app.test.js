@@ -34,9 +34,10 @@ async function dated(options) {
   const srv = t.server;
   // The source keeps the fetch it was given: wrap that one.
   const inner = srv.fetch;
-  t.app.source.fetchImpl = async (url, init) => {
-    const answer = await inner(url, init);
-    srv.requests.at(-1).at = t.app.now();
+  t.app.source.fetchImpl = (url, init) => {
+    const sent = t.app.now();
+    const answer = inner(url, init);
+    srv.requests.at(-1).at = sent;
     return answer;
   };
   return t;
@@ -462,4 +463,104 @@ test('states refused by Gladys: sent again at the next wake-up, never lost', asy
   await s.wait(16 * MINUTE);
   assert.equal(s.last(F('13', 'today')), 3);
   assert.equal(s.server.count(), 1);
+});
+
+for (const [name, answer] of [
+  ['403', () => new Response('', { status: 403 })],
+  ['a file not understood', () => new Response('<html>maintenance</html>', { status: 200 })],
+  ['the network', () => Promise.reject(new TypeError('fetch failed'))],
+]) {
+  test(`r1 I1: ${name} with an empty cache: a growing backoff, 5 requests at most in 24 h, kept in /data`, async (t) => {
+    const store = createMemoryStore();
+    const server = createServer({ 2026: csvUntil('2026-08-11') });
+    server.answer = answer;
+    const s = await dated({ server, store });
+    t.after(() => s.stop());
+    await s.start();
+    await s.wait(DAY);
+    // 0, +20 min, +40, +80, +160, +320 min: 6 by 10.3 h, then 6 h steps.
+    assert.ok(server.count() <= 8, `${server.count()} requests`);
+    const gaps = times(s)
+      .map((x) => Date.parse(`${x}Z`))
+      .map((x, i, a) => (i === 0 ? 0 : x - a[i - 1]));
+    for (let i = 2; i < gaps.length; i += 1) assert.ok(gaps[i] >= gaps[i - 1], 'growing');
+    assert.equal(s.status().connected, false);
+    assert.equal(s.last(F('13', 'today')), undefined, 'no value published');
+    assert.ok(store.data.pause?.count >= 5);
+    // A restart keeps the backoff.
+    await s.stop();
+    const before = server.count();
+    const r = await dated({ server, store, now: s.app.now() + MINUTE });
+    t.after(() => r.stop());
+    await r.start();
+    await r.wait(HOUR);
+    assert.equal(server.count(), before);
+    assert.equal(r.status().connected, false);
+    // The file back: the next read ends the backoff.
+    server.answer = () => undefined;
+    await r.wait(6 * HOUR);
+    assert.equal(r.last(F('13', 'today')), 3);
+    assert.equal(r.status().connected, true);
+    assert.equal(store.data.pause, undefined);
+  });
+}
+
+test('r1 M7: once a 5xx pause is over, the status says the last read was refused', async (t) => {
+  const server = createServer({ 2026: csvUntil('2026-08-11') });
+  const s = await dated({ server });
+  t.after(() => s.stop());
+  await s.start();
+  server.answer = () => new Response('', { status: 503 });
+  // 15:30: 503, paused until 15:50; the next slot is 16:30.
+  await s.wait(6 * HOUR);
+  assert.equal(server.count(), 2);
+  assert.equal(s.status().connected, false);
+  assert.match(s.status().message.en, /not read \(HTTP 503\): next try/);
+});
+
+test('r1 M1: the memory of the trigger is in /data before the events are sent', async (t) => {
+  const order = [];
+  const store = createMemoryStore();
+  const save = store.save.bind(store);
+  store.save = async (data) => {
+    order.push(`save:${data.memories?.[DEVICE('13')]?.issued ?? '-'}`);
+    return save(data);
+  };
+  const base = csvUntil('2026-08-11');
+  const s = await dated({ files: { 2026: base }, store });
+  t.after(() => s.stop());
+  const send = s.gladys.publishSceneEvent.bind(s.gladys);
+  s.gladys.publishSceneEvent = async (...args) => {
+    order.push('event');
+    return send(...args);
+  };
+  await s.start();
+  s.server.files[2026] = `${base}2026-08-12T14:50:04Z;13;4;4;Bouches-du-Rhône\n`;
+  await s.wait(6 * HOUR);
+  const event = order.indexOf('event');
+  assert.ok(event > 0);
+  assert.ok(order.slice(0, event).includes('save:2026-08-12'), order.join());
+});
+
+test('r1 M2/M3: a device deleted forgets its memory; one created after the read gets the next rise', async (t) => {
+  const base = csvUntil('2026-08-11');
+  const s = await dated({ files: { 2026: base }, devices: [] });
+  t.after(() => s.stop());
+  await s.start();
+  assert.equal(s.server.count(), 1);
+  const device = created('13');
+  s.gladys.devices.push(device);
+  await s.app.deviceChanged(device);
+  assert.equal(s.store.data.memories[DEVICE('13')].issued, '2026-08-11', 'seeded, no event');
+  assert.deepEqual(s.gladys.fake.sceneEvents, []);
+  s.server.files[2026] = `${base}2026-08-12T14:50:04Z;13;4;4;Bouches-du-Rhône\n`;
+  await s.wait(6 * HOUR);
+  assert.deepEqual(
+    s.gladys.fake.sceneEvents.map((e) => e.data.level),
+    ['4'],
+  );
+  s.gladys.devices.splice(0);
+  await s.app.deviceDeleted(device);
+  assert.equal(s.store.data.memories[DEVICE('13')], undefined);
+  assert.equal(s.app.memories.has(DEVICE('13')), false);
 });

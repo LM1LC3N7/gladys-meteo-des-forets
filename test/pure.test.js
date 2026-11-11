@@ -98,6 +98,17 @@ test('a file that is not the one expected is refused; a broken line is counted, 
   assert.throws(() => parseBulletins(big), { code: 'too_large' });
 });
 
+test('r1 M5/M6: same second, the later line wins; a giant line is unreadable, never split', () => {
+  const same =
+    'date;num_dep;niveau_j1;niveau_j2\n2026-08-10T14:50:04Z;13;3;3\n2026-08-10T14:50:04Z;13;4;4\n';
+  assert.equal(parseBulletins(same, { wanted: ['13'] }).byDepartment.get('13')[0].j1, 4);
+  const giant = `date;num_dep;niveau_j1;niveau_j2\n${';'.repeat(5000)}\n2026-08-10T14:50:04Z;13;2;2\n`;
+  const r = parseBulletins(giant, { wanted: ['13'] });
+  assert.equal(r.unreadable, 1);
+  assert.equal(r.byDepartment.get('13')[0].j1, 2);
+  assert.throws(() => parseBulletins(`${'x;'.repeat(3000)}\n`), { code: 'bad_answer' });
+});
+
 test('a bulletin issued twice the same day: the latest wins', () => {
   const csv = [
     'date;num_dep;niveau_j1;niveau_j2',

@@ -23,6 +23,8 @@ const DAY_FORMAT = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 });
 const HOUR = 3_600_000;
+/** A line longer than this is unreadable (never split). */
+const MAX_LINE = 4096;
 
 /** The day in Paris of an instant, `YYYY-MM-DD`. */
 export function parisDate(ms) {
@@ -94,6 +96,9 @@ export function parseLevel(text) {
 export function parseBulletins(csv, { wanted, notAfter = Infinity } = {}) {
   const text = String(csv ?? '').replace(/^\uFEFF/, '');
   const firstEnd = text.indexOf('\n');
+  if ((firstEnd === -1 ? text.length : firstEnd) > MAX_LINE) {
+    throw new SourceError('bad_answer', 'not a Météo des forêts file (header too long)');
+  }
   const header = (firstEnd === -1 ? text : text.slice(0, firstEnd)).replace(/\r$/, '');
   const separator = header.includes(';') ? ';' : ',';
   const names = header.split(separator).map((n) => n.trim().toLowerCase());
@@ -115,12 +120,18 @@ export function parseBulletins(csv, { wanted, notAfter = Infinity } = {}) {
   while (start < text.length) {
     let end = text.indexOf('\n', start);
     if (end === -1) end = text.length;
-    const line = text.slice(start, end).replace(/\r$/, '');
+    const length = end - start;
+    const line = length > MAX_LINE ? '' : text.slice(start, end).replace(/\r$/, '');
     start = end + 1;
-    if (line.trim() === '') continue;
+    if (length <= MAX_LINE && line.trim() === '') continue;
     lines += 1;
     if (lines > MAX_LINES) {
       throw new SourceError('too_large', `more than ${MAX_LINES} lines`);
+    }
+    if (length > MAX_LINE) {
+      // A line of 50 bytes in the real files: a giant one is never split.
+      unreadable += 1;
+      continue;
     }
     const cells = line.split(separator);
     const at = parseIssueTime(cells[col.date]);
@@ -140,7 +151,8 @@ export function parseBulletins(csv, { wanted, notAfter = Infinity } = {}) {
     let days = byDay.get(dep);
     if (!days) byDay.set(dep, (days = new Map()));
     const before = days.get(bulletin.issued);
-    if (!before || before.at < at) days.set(bulletin.issued, bulletin);
+    // The latest of the day wins; at the same second, the later line of the file.
+    if (!before || before.at <= at) days.set(bulletin.issued, bulletin);
   }
   if (lines > 0 && newestAt === undefined) {
     throw new SourceError('bad_answer', 'no readable line');

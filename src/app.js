@@ -65,6 +65,9 @@ function validPause(pause, now, mono) {
     due: mono + left,
     count: Math.min(pause.count, 16),
     status: Number.isInteger(pause.status) ? pause.status : null,
+    // 'server' (429/5xx asked to wait) or 'error' (any other failure: backoff).
+    kind: pause.kind === 'error' ? 'error' : 'server',
+    message: typeof pause.message === 'string' ? pause.message.slice(0, 120) : undefined,
   };
 }
 
@@ -231,6 +234,8 @@ export class ForestApp {
         until: this.pause.until,
         count: this.pause.count,
         status: this.pause.status,
+        kind: this.pause.kind,
+        message: this.pause.message,
       },
       cache: this.cache,
       memories: Object.fromEntries(this.memories),
@@ -580,7 +585,6 @@ export class ForestApp {
       return;
     }
     if (gone()) return;
-    this.pause = undefined;
     if (answer.notModified) {
       this.outcome = { kind: 'ok', at: now, unreadable: this.outcome?.unreadable ?? 0 };
     } else {
@@ -605,6 +609,8 @@ export class ForestApp {
         this.logger.warn(`${parsed.unreadable} unreadable line(s) ignored`);
       }
     }
+    // A usable answer ends the backoff (never before the file is read).
+    this.pause = undefined;
     this.logger.info(
       `Read: newest bulletin ${finite(this.cache.newestAt) ? new Date(this.cache.newestAt).toISOString() : 'none'}`,
     );
@@ -629,20 +635,27 @@ export class ForestApp {
       this.outcome = { kind: 'noFile', at: now, year: parisYear(now) };
       this.logger.info(`No file for ${parisYear(now)} yet (off season)`);
       await this.publishLevels(this.now(), { events: true });
-    } else if (code === 'rate_limited' || code === 'server') {
+    } else {
+      // Any other failure (429, 5xx, 403, a file not understood, the network):
+      // a backoff of 20 min doubled up to 6 h, kept in /data, the Retry-After
+      // honored. Never a read every MIN_GAP while the cache stays empty.
+      const server = code === 'rate_limited' || code === 'server';
       const count = (this.pause?.count ?? 0) + 1;
       const doubled = PAUSE.min * 2 ** Math.min(count - 1, 8);
       const wait = Math.min(PAUSE.max, Math.max(doubled, err.retryAfter ?? 0));
-      this.pause = { until: now + wait, due: mono + wait, count, status: err.status ?? null };
-      this.outcome = { kind: 'paused', at: now };
-      this.logger.warn(`Paused for ${Math.round(wait / 60_000)} min (${err.message})`);
-    } else {
-      this.outcome = {
-        kind: 'error',
-        at: now,
-        message: String(err?.message ?? code).slice(0, 120),
+      const message = String(err?.message ?? code).slice(0, 120);
+      this.pause = {
+        until: now + wait,
+        due: mono + wait,
+        count,
+        status: err.status ?? null,
+        kind: server ? 'server' : 'error',
+        message,
       };
-      this.logger.warn(`Read failed (${this.outcome.message})`);
+      this.outcome = server
+        ? { kind: 'paused', at: now, status: err.status ?? null }
+        : { kind: 'error', at: now, message };
+      this.logger.warn(`Read failed (${message}): next try in ${Math.round(wait / 60_000)} min`);
     }
     await this.saveState();
     await this.updateStatus();
@@ -700,6 +713,16 @@ export class ForestApp {
           this.config.language,
         ),
       );
+      if (!events && !this.memories.has(target.deviceId) && this.cache.deps.includes(target.code)) {
+        // A device created after a read: its memory starts from the bulletins
+        // kept (no event), so that the next rise is announced.
+        const { memory } = departmentEvents(undefined, bulletins, {
+          deviceId: target.deviceId,
+          now,
+        });
+        this.memories.set(target.deviceId, memory);
+        memoriesChanged = true;
+      }
       if (events) {
         const { events: list, memory } = departmentEvents(
           this.memories.get(target.deviceId),
@@ -752,7 +775,7 @@ export class ForestApp {
     }
     const due = this.dueAt(now, mono);
     const next = finite(due) ? Math.max(due, now) : undefined;
-    if (this.pause && this.pauseLeft(mono) > 0) {
+    if (this.pause?.kind === 'server' && this.pauseLeft(mono) > 0) {
       await this.setStatus(
         false,
         joinLines([T.paused(now + this.pauseLeft(mono), this.pause.status ?? 429), ...lines]),
@@ -764,10 +787,18 @@ export class ForestApp {
     const toCreate = departments.filter((d) => !created.has(d));
     const orphans = targets.filter((t) => !t.followed).map((t) => t.name);
     let connected = true;
-    const outcome = this.outcome;
+    const outcome =
+      this.outcome ??
+      (this.pause?.kind === 'error'
+        ? { kind: 'error', message: this.pause.message ?? '?' }
+        : undefined);
     if (outcome?.kind === 'error') {
       connected = false;
       lines.unshift(T.failed(outcome.message, next ?? now));
+    } else if (outcome?.kind === 'paused') {
+      // The pause is over, the next read not made yet.
+      connected = false;
+      lines.unshift(T.failed(`HTTP ${outcome.status ?? '5xx'}`, next ?? now));
     } else if (outcome?.kind === 'noFile') {
       lines.push(T.noFile(outcome.year));
     } else if (outcome?.kind === 'ok' || (!outcome && this.cache.url)) {
@@ -779,7 +810,9 @@ export class ForestApp {
     } else {
       lines.push(T.notRead);
     }
-    if (next !== undefined && outcome?.kind !== 'error') lines.push(T.next(next));
+    if (next !== undefined && outcome?.kind !== 'error' && outcome?.kind !== 'paused') {
+      lines.push(T.next(next));
+    }
     if (toCreate.length > 0) lines.push(T.notCreated(toCreate.map(departmentLabel)));
     if (orphans.length > 0) lines.push(T.orphans(orphans));
     lines.push(T.caveat);

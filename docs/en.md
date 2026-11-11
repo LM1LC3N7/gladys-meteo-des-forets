@@ -25,7 +25,11 @@ of Météo-France.
   level of the day before, level of the day after, department code, day forecast, time of the
   bulletin. Once per bulletin and per level crossed; never at the first read of a department; never
   for a bulletin more than 24 h old (found late after an outage); a bulletin corrected the same day
-  never fires a rise already announced.
+  never fires a rise already announced;
+  a correction published after the read of the day is only read the next day. After an outage, a
+  bulletin less than 24 h old may still fire while the "tomorrow" it forecasts is already today (the
+  "day forecast" variable says so). When /data cannot be written, the event is sent all the same: a
+  restart may then send it again.
 
 ## Configuration
 
@@ -55,8 +59,10 @@ file `mdf_<year>.csv.gz` (about 50 KB compressed).
   without any download.
 - From January 1 until the file of the year exists, the server answers 404: "no bulletin yet this
   year", not an error, once a day.
-- When the server asks to wait (429 or 5xx), the integration waits as asked (20 minutes at least,
-  doubled at each refusal, 6 hours at most), across a restart too.
+- After a failure (429, 5xx, 403, network, a file not understood), the integration waits before
+  trying again: 20 minutes, doubled at each failure, 6 hours at most, what the server asks when it
+  says so (`Retry-After`), across a restart too. A file not understood publishes no value and leaves
+  the status in error.
 
 ## What /data keeps
 

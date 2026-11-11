@@ -18,7 +18,7 @@ the notes of the version's GitHub Release.
   bulletin, and the scene trigger "Forest fire danger forecast raised".
 - Reads at the times the bulletin comes out (15:30 UTC, again until it is in;
   once a day off season), the ETag of the file (304 without download), at
-  least 20 minutes between two requests, the pauses asked by the server kept
-  across a restart.
+  least 20 minutes between two requests; after any failure a backoff of
+  20 minutes doubled up to 6 hours, kept across a restart.
 - Off season and before the file of the year exists: "no bulletin", not an
   error, nothing published as 0.

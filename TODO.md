@@ -50,6 +50,13 @@
   the file aside before replacing it); one write at a time, bounded wait, the
   newest state written after a slow one.
 
+- r1: every failure but the 404 (429, 5xx, 403, a file not understood, the
+  network) gives a backoff of 20 min doubled up to 6 h, Retry-After honored,
+  kept in /data and ended only by a usable answer (I1). A device created after
+  a read gets its trigger memory from the bulletins kept (M3). A line over
+  4 KB is unreadable (M6); at the same second the later line wins (M5). A
+  correction after the read of the day is read the next day (M4, documented).
+
 ## Later
 
 - `countries: ["FR"]` when the store accepts it.

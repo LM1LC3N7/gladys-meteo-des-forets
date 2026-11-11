@@ -1,6 +1,6 @@
 {
   "name": "gladys-meteo-des-forets",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Météo-France forest fire danger (Météo des forêts) by department for Gladys Assistant: levels of today, tomorrow and the day after, from the open data, with a scene trigger. Unofficial.",
   "type": "module",

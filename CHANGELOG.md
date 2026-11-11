@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-11
+
 ### Added
 
 - First version: the forest fire danger of the Météo des forêts (Météo-France,
@@ -22,3 +24,6 @@ the notes of the version's GitHub Release.
   20 minutes doubled up to 6 hours, kept across a restart.
 - Off season and before the file of the year exists: "no bulletin", not an
   error, nothing published as 0.
+
+[Unreleased]: https://github.com/LM1LC3N7/gladys-meteo-des-forets/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/LM1LC3N7/gladys-meteo-des-forets/releases/tag/v0.1.1

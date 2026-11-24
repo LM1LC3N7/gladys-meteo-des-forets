@@ -349,7 +349,7 @@ test('getFile: ETag sent only when clean, 304, 404, 429 with Retry-After, redire
     },
   );
   assert.equal(seen[0].headers['If-None-Match'], '"ab"');
-  assert.match(seen[0].headers['User-Agent'], /^gladys-meteo-des-forets\/0\.1\.0 \(\+https:/);
+  assert.match(seen[0].headers['User-Agent'], /^gladys-meteo-des-forets\/\d+\.\d+\.\d+ \(\+https:/);
   assert.equal(seen[0].redirect, 'error');
   await getFile('https://x/f', { maxBytes: 10, etag: '"a"\r\nX: y', fetchImpl });
   assert.equal(seen[1].headers['If-None-Match'], undefined);

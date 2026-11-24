@@ -41,7 +41,6 @@ test('the store basics; the same version everywhere (semver, never pinned by han
   assert.equal(manifest.manifest_version, 1);
   assert.equal(manifest.type, 'device');
   assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
-  assert.equal(pkg.version, '0.1.0');
   assert.equal(manifest.version, pkg.version);
   assert.equal(
     manifest.docker_image,
